@@ -1,0 +1,32 @@
+name: test
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: coursier/cache-action@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - name : Set up python
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Run integration test
+        run: |
+          sbt "project stdout" assembly
+          docker run -d         -name micro --mount type=bind,source=$(pwd)/.github/workflows/telemetry/receiver_config,destination=/config -p 9191:9191 snowplow/snowplow-micro:1.2.1 --collector-config /config/config.hocon --iglu /config/iglu.json run: java -jar $(pwd)/stdout/target/scala-*/*.jar --config $(pwd)/.github/workflows/telemetry/sender_config/config.hocon
+          # ddd
+          PID_C1=$$
+          java -jar $(pwd)/stdout/target/scala-*/*.jar --config $(pwd)/.github/workflows/telemetry/sender_config/config_disabled.hocon &
+          PID_C2=$$
+          sleep 30
+          kill $PID_C1 $PID_C2
+          docker stop micro
+          pip install requests
+          python3 .github/workflows/telemetry/verify_micro_content.py
+          
